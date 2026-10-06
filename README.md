@@ -44,7 +44,7 @@ pio run -t upload -t monitor
 tools/release.sh 0.2.0 notes.md   # or write docs/releases/v0.2.0.md first
 ```
 
-That commits the version bump, tags `v0.2.0` and pushes. The Release workflow builds both images, publishes the GitHub release and redeploys the web flasher. GitHub Pages must be set to "GitHub Actions" as the source once, in the repo settings.
+That commits the version bump, tags `v0.2.0` and pushes. The Release workflow builds both images, publishes the GitHub release and redeploys the web flasher. The workflow enables GitHub Pages on first run; no settings to touch.
 
 ## Status
 
