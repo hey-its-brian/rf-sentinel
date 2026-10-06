@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RF SENTINEL Installer</title>
+<meta name="description" content="Install RF Sentinel on a 2.8 inch CYD host or an M5Stamp C5 node from your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<!-- ESP Web Tools 10.4.0, copied from npm into the site by the release workflow (no CDN at runtime). -->
+<script type="module" src="ewt/install-button.js"></script>
+<style>
+:root {
+  --bg: #07070d; --panel: #0d0f1c; --panel-hi: #171a30; --line: #2a3050;
+  --text: #d8e1f0; --dim: #7a84a3; --accent: #00f0ff; --accent2: #ff2a6d;
+  --warn: #f3e600; --ok: #39ff14;
+  --mono: "Share Tech Mono", "SF Mono", Menlo, Consolas, monospace;
+  --disp: "Orbitron", var(--mono);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background-color: var(--bg);
+  background-image: linear-gradient(#16182a 1px, transparent 1px), linear-gradient(90deg, #16182a 1px, transparent 1px);
+  background-size: 40px 40px;
+  color: var(--text);
+  font: 17px/1.6 var(--mono);
+}
+.wrap { max-width: 980px; margin: 0 auto; padding: 32px 16px 64px; }
+header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+         border-bottom: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); padding-bottom: 14px; }
+.brand { font: 700 40px/1 var(--disp); letter-spacing: 2px; }
+.brand b { color: var(--accent); font-weight: 700; }
+.sub { color: var(--dim); }
+.grow { flex: 1; }
+.ver { color: var(--accent2); }
+.panel {
+  background: var(--panel); position: relative; padding: 24px; margin-top: 24px;
+  clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.panel::before { content: ""; position: absolute; left: 26px; top: 0; width: 64px; height: 3px; background: var(--accent2); }
+h2 { font: 500 18px/1.2 var(--disp); color: var(--accent); letter-spacing: 1px; margin: 0 0 14px; }
+h2::before { content: "// "; }
+h2 small { color: var(--dim); font: 14px/1 var(--mono); letter-spacing: 0; margin-left: 10px; }
+.hero { width: 100%; height: auto; display: block; margin-top: 24px; border: 1px solid var(--line); }
+.install { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+esp-web-install-button button[slot="activate"] {
+  font: 700 20px/1 var(--disp); letter-spacing: 2px; color: var(--bg); background: var(--accent);
+  border: 0; padding: 18px 34px; cursor: pointer;
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+}
+esp-web-install-button button[slot="activate"]:hover { background: #6bf7ff; }
+.node esp-web-install-button button[slot="activate"] { background: var(--accent2); color: var(--text); }
+.node esp-web-install-button button[slot="activate"]:hover { background: #ff6b98; }
+.unsupported, .not-allowed { color: var(--warn); }
+ol, ul { margin: 0; padding-left: 22px; }
+li { margin: 6px 0; }
+.note { color: var(--dim); font-size: 15px; }
+.warn { color: var(--warn); }
+a { color: var(--accent); }
+code { color: var(--ok); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 24px; }
+.bands { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+.band { font: 500 13px/1 var(--disp); letter-spacing: 1px; color: var(--accent); border: 1px solid var(--line);
+        padding: 8px 12px; background: var(--panel-hi); }
+.band.rx { color: var(--ok); }
+footer { margin-top: 32px; color: var(--dim); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">RF<b>//SENTINEL</b></div>
+    <div class="sub">RECEIVE-ONLY RF AND GNSS MONITOR</div>
+    <div class="grow"></div>
+    <div class="ver" id="ver"></div>
+  </header>
+
+  <div class="bands">
+    <span class="band rx">RX ONLY</span>
+    <span class="band">433 MHz</span>
+    <span class="band">2.4 GHz</span>
+    <span class="band">GNSS</span>
+    <span class="band">WI-FI 2.4 + 5</span>
+    <span class="band">BLE</span>
+    <span class="band">LORA 915</span>
+  </div>
+
+  <img class="hero" src="screenshots/home.png" alt="RF Sentinel home screen on the CYD" width="640" height="480"
+       onerror="this.style.display='none'">
+
+  <div class="grid">
+    <div class="panel">
+      <h2>HOST <small>CYD 2.8" ESP32-2432S028R</small></h2>
+      <div class="install">
+        <esp-web-install-button manifest="manifest-cyd.json">
+          <button slot="activate">INSTALL HOST</button>
+          <span slot="unsupported" class="unsupported">This browser can't talk to USB devices. Use Chrome or Edge on a desktop computer.</span>
+          <span slot="not-allowed" class="not-allowed">Open this page over HTTPS to install.</span>
+        </esp-web-install-button>
+      </div>
+      <p class="note">The screen. Draws what the node hears and adds its own Wi-Fi and BLE view.</p>
+    </div>
+    <div class="panel node">
+      <h2>NODE <small>M5Stamp C5</small></h2>
+      <div class="install">
+        <esp-web-install-button manifest="manifest-node.json">
+          <button slot="activate">INSTALL NODE</button>
+          <span slot="unsupported" class="unsupported">This browser can't talk to USB devices. Use Chrome or Edge on a desktop computer.</span>
+          <span slot="not-allowed" class="not-allowed">Open this page over HTTPS to install.</span>
+        </esp-web-install-button>
+      </div>
+      <p class="note">The radios. CC1101, nRF24, GPS, optional SX1262, plus the C5's own dual-band Wi-Fi.</p>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>STEPS</h2>
+      <ol>
+        <li>Plug the board into this computer with a USB-C <b>data</b> cable.</li>
+        <li>Click the matching <b>INSTALL</b> and pick its port. The CYD shows up as a CH340 serial device, the C5 as a USB JTAG/serial device.</li>
+        <li>Confirm, wait for the progress bar, done. The board restarts into RF Sentinel.</li>
+        <li>Repeat for the other board, then wire them together (see the wiring doc).</li>
+      </ol>
+      <p class="note">No port? CYD: hold BOOT while plugging in. C5: hold the button on G28 while plugging in.</p>
+    </div>
+    <div class="panel">
+      <h2>GOOD TO KNOW</h2>
+      <ul>
+        <li class="warn">Installing erases the whole flash on that board.</li>
+        <li>Nothing here transmits. The node firmware has no transmit path and the build breaks if one is added.</li>
+        <li>Pin map, module wiring and power are in <a href="https://github.com/hey-its-brian/rf-sentinel/blob/main/docs/wiring.md">docs/wiring.md</a>.</li>
+        <li>The node talks the same <code>$RFS</code> text protocol over USB, so a laptop works as a host too: open the port at 115200 and watch.</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    <a href="https://github.com/hey-its-brian/rf-sentinel">Source on GitHub</a> ·
+    <a href="https://github.com/hey-its-brian/rf-sentinel/releases">Releases and notes</a> ·
+    Part of the <a href="https://hey-its-brian.github.io/tab5-cyberdeck/">DECK//OS</a> family ·
+    Installer powered by <a href="https://esphome.github.io/esp-web-tools/">ESP Web Tools</a>
+  </footer>
+</div>
+<script>
+fetch("manifest-cyd.json").then((r) => r.json()).then((m) => {
+  document.getElementById("ver").textContent = "v" + m.version;
+}).catch(() => {});
+</script>
+</body>
+</html>

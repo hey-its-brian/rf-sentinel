@@ -1,0 +1,87 @@
+menu "RF Sentinel pins"
+    comment "Stamp C5 pad GPIOs: G1-G10 and G28. G2, G7, G28 are strapping pins."
+    comment "FPC-only GPIOs: G0, G23, G24, G25, G26, G27, G11, G12."
+
+    config RFS_PIN_SCK
+        int "SPI SCK (shared)"
+        default 1
+    config RFS_PIN_MOSI
+        int "SPI MOSI (shared)"
+        default 3
+    config RFS_PIN_MISO
+        int "SPI MISO (shared)"
+        default 4
+
+    config RFS_PIN_NRF_CS
+        int "NRF24 CSN"
+        default 5
+    config RFS_PIN_NRF_CE
+        int "NRF24 CE"
+        default 6
+
+    config RFS_PIN_CC_CS
+        int "CC1101 CSN"
+        default 8
+    config RFS_PIN_CC_GDO0
+        int "CC1101 GDO0 (-1 = not wired, RSSI is polled over SPI anyway)"
+        default -1
+
+    config RFS_PIN_GPS_RX
+        int "GPS data into the C5 (module TX)"
+        default 9
+    config RFS_PIN_GPS_TX
+        int "C5 data to GPS (module RX, -1 = not wired)"
+        default -1
+    config RFS_GPS_BAUD
+        int "GPS baud"
+        default 9600
+
+    config RFS_PIN_HOST_TX
+        int "Host UART: C5 TX (to host RX)"
+        default 10
+    config RFS_PIN_HOST_RX
+        int "Host UART: C5 RX (from host TX). G2 is a strapping pin; UART idle-high is safe"
+        default 2
+    config RFS_HOST_BAUD
+        int "Host UART baud"
+        default 115200
+
+    config RFS_LORA
+        bool "SX1262 (Stamp LoRa) fitted"
+        default n
+    config RFS_PIN_LORA_NSS
+        int "SX1262 NSS"
+        default 23
+        depends on RFS_LORA
+    config RFS_PIN_LORA_RST
+        int "SX1262 RESET"
+        default 0
+        depends on RFS_LORA
+    config RFS_PIN_LORA_BUSY
+        int "SX1262 BUSY"
+        default 24
+        depends on RFS_LORA
+    config RFS_PIN_LORA_DIO1
+        int "SX1262 DIO1"
+        default 26
+        depends on RFS_LORA
+    config RFS_LORA_FREQ_MHZ
+        int "SX1262 listen frequency (MHz)"
+        default 915
+        depends on RFS_LORA
+endmenu
+
+menu "RF Sentinel behaviour"
+    config RFS_SWEEP_PERIOD_MS
+        int "Radio sweep period (ms)"
+        default 250
+    config RFS_STAT_PERIOD_MS
+        int "STAT/GPS report period (ms)"
+        default 1000
+    config RFS_WIFI_PERIOD_MS
+        int "Wi-Fi presence scan period (ms, 0 = off)"
+        default 15000
+    config RFS_BASELINE_WARMUP
+        int "Samples before a channel can raise alerts"
+        default 80
+endmenu
