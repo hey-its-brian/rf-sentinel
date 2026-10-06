@@ -16,6 +16,10 @@
 #include <functional>
 #include <initializer_list>
 
+#ifndef RFS_HOST_VERSION
+#define RFS_HOST_VERSION "dev"
+#endif
+
 static LGFX lcd;
 static Page page = PG_HOME;
 static uint32_t lastDraw = 0;
@@ -39,22 +43,45 @@ static constexpr uint16_t C_PANELHI = rgb(0x171A30);  // raised / selected fill
 static constexpr uint16_t C_LINE    = rgb(0x2A3050);  // idle outline, rules
 static constexpr uint16_t C_TXT     = rgb(0xD8E1F0);  // primary text
 static constexpr uint16_t C_DIM     = rgb(0x7A84A3);  // secondary text (web value, legible at 6x8)
-static constexpr uint16_t C_ACC     = rgb(0x00F0FF);  // primary neon
-static constexpr uint16_t C_ACC2    = rgb(0xFF2A6D);  // secondary neon
+static uint16_t           C_ACC     = rgb(0x00F0FF);  // primary neon (theme)
+static uint16_t           C_ACC2    = rgb(0xFF2A6D);  // secondary neon (theme)
 static constexpr uint16_t C_WARN    = rgb(0xF3E600);  // caution
 static constexpr uint16_t C_OK      = rgb(0x39FF14);  // healthy
 static constexpr uint16_t C_DANGER  = rgb(0xFF3B3B);  // alarm
-static constexpr uint16_t C_RULE    = rgb(mix(0x00F0FF, 0x0D0F1C, 102));  // accent at 40%
+static uint16_t           C_RULE    = rgb(mix(0x00F0FF, 0x0D0F1C, 102));  // accent at 40%
+
+// The four accent pairs from deck_theme.c. Base colours are shared; only the
+// two neons change, exactly as on the Tab5.
+struct Theme { const char* name; uint32_t acc, acc2; };
+static const Theme THEMES[] = {
+  {"NETRUNNER", 0x00F0FF, 0xFF2A6D},  // cyan + magenta
+  {"ARASAKA",   0xFF2A6D, 0x00F0FF},  // magenta + cyan
+  {"NOMAD",     0xF3E600, 0xFF2A6D},  // acid yellow + magenta
+  {"MILITECH",  0x39FF14, 0xF3E600},  // phosphor green + yellow
+};
+static const int THEME_N = 4;
+static uint8_t  s_theme = 0;
+static uint8_t  s_bright = 200;
+static uint16_t s_rate = 250;        // node sweep period, ms
+static const uint16_t RATES[] = {100, 250, 500, 1000};
+static Preferences prefs;
+
+static void applyTheme(int i) {
+  s_theme = constrain(i, 0, THEME_N - 1);
+  C_ACC  = rgb(THEMES[s_theme].acc);
+  C_ACC2 = rgb(THEMES[s_theme].acc2);
+  C_RULE = rgb(mix(THEMES[s_theme].acc, 0x0D0F1C, 102));
+}
 
 // ---- layout (landscape 320x240) ---------------------------------------------
 static const int W = 320, H = 240;
 static const int TOP = 22;                       // status bar incl. its rule
 static const int NAV_H = 26, NAV_Y = H - NAV_H;  // bottom nav
 static const int BODY_Y = TOP + 2, BODY_B = NAV_Y - 2;  // body rows [BODY_Y, BODY_B)
-static const int TAB_W = 53;                     // 6 nav tabs across 318 px
+static const int TAB_W = 45;                     // 7 nav tabs across 315 px
 
-static const char* NAMES[PG_COUNT] = {"HOME", "433", "2.4G", "GPS", "WIFI", "BLE"};
-static const char* TITLES[PG_COUNT] = {"HOME", "433 MHZ", "2.4 GHZ", "GNSS", "WI-FI", "BLE"};
+static const char* NAMES[PG_COUNT] = {"HOME", "433", "2.4G", "GPS", "WIFI", "BLE", "SET"};
+static const char* TITLES[PG_COUNT] = {"HOME", "433 MHZ", "2.4 GHZ", "GNSS", "WI-FI", "BLE", "SETTINGS"};
 
 // Chamfer flags, same meaning as DECK_CUT_* in deck_widgets.h
 enum : uint8_t { CUT_TL = 1, CUT_TR = 2, CUT_BR = 4, CUT_BL = 8, CUT_DIAG = CUT_TL | CUT_BR };
@@ -445,13 +472,98 @@ static void pageBle(bool f) {
   for (int i = 0; i < NSEG; i++) lcd.fillRect(5 + i * 10, segY, 8, 12, i < on ? c : C_LINE);
 }
 
+
+// ---- settings page ----------------------------------------------------------
+// Hit regions are fixed so the touch handler can map a tap without a widget
+// tree: theme chips in a row, then [-] [+] rows, then one button.
+static const int ST_THEME_Y = BODY_Y + 28, ST_THEME_H = 22, ST_THEME_W = 76;
+static const int ST_BRIGHT_Y = ST_THEME_Y + ST_THEME_H + 22;
+static const int ST_RATE_Y = ST_BRIGHT_Y + 24;
+static const int ST_CAL_Y = ST_RATE_Y + 34, ST_CAL_H = 24;
+static const int ST_BTN_W = 26;    // [-] and [+]
+static const int ST_BTN_X1 = 110, ST_BTN_X2 = 214;
+
+static void button(int x, int y, int w, int h, const char* label, uint16_t c, bool lit) {
+  panel(x, y, w, h, CUT_DIAG, 4, lit ? C_PANELHI : C_PANEL, lit ? c : C_LINE, C_BG, lit, c);
+  txt(x + w / 2, y + (h - 8) / 2, label, lit ? c : C_TXT, lit ? C_PANELHI : C_PANEL, 0, lgfx::top_center);
+}
+
+static void pageSettings(bool f) {
+  char b[48];
+  if (f) {
+    pageTitle(RFS_HOST_VERSION);
+    section(4, ST_THEME_Y - 14, W - 8, "THEME", "ACCENT PAIR, SAME AS DECK//OS");
+    section(4, ST_BRIGHT_Y - 14, W - 8, "DISPLAY");
+    txt(8, ST_BRIGHT_Y + 7, "BRIGHTNESS", C_DIM);
+    txt(8, ST_RATE_Y + 7, "NODE SWEEP", C_DIM);
+    section(4, ST_CAL_Y - 14, W - 8, "TOUCH");
+    button(8, ST_CAL_Y, 150, ST_CAL_H, "RECALIBRATE TOUCH", C_WARN, false);
+    txt(170, ST_CAL_Y + 8, "ALSO: HOLD SCREEN AT BOOT", C_DIM);
+  }
+  // theme chips, redrawn every tick so a selection change shows at once
+  for (int i = 0; i < THEME_N; i++) {
+    int x = 6 + i * (ST_THEME_W + 4);
+    bool on = i == s_theme;
+    uint16_t c = rgb(THEMES[i].acc);
+    panel(x, ST_THEME_Y, ST_THEME_W, ST_THEME_H, CUT_DIAG, 5, on ? C_PANELHI : C_PANEL, on ? c : C_LINE, C_BG, on, rgb(THEMES[i].acc2));
+    txt(x + ST_THEME_W / 2, ST_THEME_Y + 7, THEMES[i].name, on ? c : C_TXT, on ? C_PANELHI : C_PANEL, 0, lgfx::top_center);
+  }
+  button(ST_BTN_X1, ST_BRIGHT_Y, ST_BTN_W, 22, "-", C_ACC, false);
+  button(ST_BTN_X2, ST_BRIGHT_Y, ST_BTN_W, 22, "+", C_ACC, false);
+  snprintf(b, sizeof b, "%d%%", s_bright * 100 / 255);
+  txt((ST_BTN_X1 + ST_BTN_W + ST_BTN_X2) / 2, ST_BRIGHT_Y + 7, b, C_ACC, C_BG, 40, lgfx::top_center);
+  button(ST_BTN_X1, ST_RATE_Y, ST_BTN_W, 22, "<", C_ACC, false);
+  button(ST_BTN_X2, ST_RATE_Y, ST_BTN_W, 22, ">", C_ACC, false);
+  snprintf(b, sizeof b, "%u MS", s_rate);
+  txt((ST_BTN_X1 + ST_BTN_W + ST_BTN_X2) / 2, ST_RATE_Y + 7, b, C_ACC, C_BG, 60, lgfx::top_center);
+  // footer: versions and heap
+  snprintf(b, sizeof b, "HOST %s  NODE %s  HEAP %lu", RFS_HOST_VERSION, model.fw, (unsigned long)ESP.getFreeHeap());
+  txt(4, BODY_B - 10, b, C_DIM, C_BG, W - 8);
+}
+
+static void sendRate() {
+  char c[24]; snprintf(c, sizeof c, "CMD,RATE,%u", s_rate);
+  protoSend(c);
+}
+
+static void runCalibration();
+// Returns true if the tap did something.
+static bool settingsTap(int x, int y) {
+  if (y >= ST_THEME_Y && y < ST_THEME_Y + ST_THEME_H) {
+    int i = (x - 6) / (ST_THEME_W + 4);
+    if (i >= 0 && i < THEME_N && i != s_theme) {
+      applyTheme(i); prefs.putUChar("theme", s_theme);
+      chromeDrawn = false; full = true;      // repaint everything in the new accent
+    }
+    return true;
+  }
+  auto inBtn = [&](int bx, int by) { return x >= bx && x < bx + ST_BTN_W && y >= by && y < by + 22; };
+  if (inBtn(ST_BTN_X1, ST_BRIGHT_Y) || inBtn(ST_BTN_X2, ST_BRIGHT_Y)) {
+    int v = s_bright + (x < ST_BTN_X2 ? -25 : 25);
+    s_bright = constrain(v, 25, 255);
+    lcd.setBrightness(s_bright); prefs.putUChar("bright", s_bright);
+    return true;
+  }
+  if (inBtn(ST_BTN_X1, ST_RATE_Y) || inBtn(ST_BTN_X2, ST_RATE_Y)) {
+    int i = 0; while (i < 3 && RATES[i] != s_rate) i++;
+    i = constrain(i + (x < ST_BTN_X2 ? -1 : 1), 0, 3);
+    s_rate = RATES[i]; prefs.putUShort("rate", s_rate); sendRate();
+    return true;
+  }
+  if (x >= 8 && x < 158 && y >= ST_CAL_Y && y < ST_CAL_Y + ST_CAL_H) {
+    runCalibration(); chromeDrawn = false; full = true;
+    return true;
+  }
+  return false;
+}
+
+void uiNodeLinked() { if (s_rate != 250) sendRate(); }
+
 // ---- touch calibration ------------------------------------------------------
 // The XPT2046 raw range differs board to board, so the first boot runs
 // LovyanGFX's corner-marker calibration and stores the eight values in NVS.
 // Hold a finger on the screen (or the BOOT button) during the boot splash to
 // run it again.
-static Preferences prefs;
-
 static void bootSplash(const char* msg, uint16_t mc) {
   lcd.fillScreen(C_BG);
   lcd.setTextDatum(lgfx::middle_center);
@@ -489,9 +601,12 @@ static bool loadCalibration() {
 void uiBegin() {
   lcd.init();
   lcd.setRotation(1);
-  lcd.setBrightness(200);
   lcd.setFont(&fonts::Font0);
   prefs.begin("rfs", false);
+  applyTheme(prefs.getUChar("theme", 0));
+  s_bright = prefs.getUChar("bright", 200);
+  s_rate = prefs.getUShort("rate", 250);
+  lcd.setBrightness(s_bright);
   pinMode(0, INPUT_PULLUP);   // BOOT button
 
   bool haveCal = loadCalibration();
@@ -520,6 +635,8 @@ void uiTick() {
       if (ty >= NAV_Y) {
         Page p = (Page)constrain(tx / TAB_W, 0, PG_COUNT - 1);
         if (p != page) { page = p; full = true; }
+      } else if (page == PG_SET) {
+        settingsTap(tx, ty);
       } else if (page == PG_HOME) {
         protoSend("CMD,PING");
         pingMs = millis();
@@ -543,6 +660,7 @@ void uiTick() {
     case PG_GPS:  pageGps(f);  break;
     case PG_WIFI: pageWifi(f); break;
     case PG_BLE:  pageBle(f);  break;
+    case PG_SET:  pageSettings(f); break;
     default: break;
   }
   lcd.endWrite();

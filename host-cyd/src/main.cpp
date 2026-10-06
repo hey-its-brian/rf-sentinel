@@ -37,6 +37,10 @@ void loop() {
   scannersPoll();
   uiTick();
   ledStatus();
+  static bool wasLinked = false;
+  bool linked = model.linkAlive();
+  if (linked && !wasLinked) uiNodeLinked();
+  wasLinked = linked;
   static uint32_t lastHello = 0;
   if (!model.linkAlive() && millis() - lastHello > 3000) { lastHello = millis(); protoSend("CMD,HELLO"); }
   delay(5);

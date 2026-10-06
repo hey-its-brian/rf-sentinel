@@ -50,8 +50,10 @@ void scannersBegin() {
   scan = NimBLEDevice::getScan();
   scan->setAdvertisedDeviceCallbacks(new AdvCb(), true);
   scan->setActiveScan(false);      // passive: never send scan requests
-  scan->setInterval(100);
-  scan->setWindow(80);
+  // Wi-Fi and BLE share one radio on the classic ESP32. Keep the BLE duty
+  // cycle low (30%) or Wi-Fi scans starve and return nothing.
+  scan->setInterval(160);
+  scan->setWindow(48);
   scan->setMaxResults(0);          // callbacks only, no internal list
   scan->start(0, nullptr, false);  // continuous
 }
@@ -62,9 +64,13 @@ void scannersPoll() {
   if (now - lble.lastWindowMs >= BLE_WINDOW_MS) bleWindowDone();
 
   // Wi-Fi scan (async so the UI keeps moving)
-  if (!lwifi.scanning && now - lwifi.lastScanMs >= WIFI_PERIOD_MS) {
-    WiFi.scanNetworks(true, true, true /* passive */, 120);
-    lwifi.scanning = true;
+  static bool first = true;
+  if (!lwifi.scanning && (first ? now > 3000 : now - lwifi.lastScanMs >= WIFI_PERIOD_MS)) {
+    first = false;
+    // passive, 300 ms per channel: long enough to catch at least one beacon
+    int16_t r = WiFi.scanNetworks(true, true, true, 300);
+    lwifi.scanning = (r == WIFI_SCAN_RUNNING);
+    if (!lwifi.scanning) { Serial.printf("[wifi] scan start failed (%d)\n", r); lwifi.lastScanMs = now; }
   }
   if (lwifi.scanning) {
     int n = WiFi.scanComplete();
@@ -78,6 +84,7 @@ void scannersPoll() {
       }
       WiFi.scanDelete();
       lwifi.scanning = false; lwifi.lastScanMs = now;
-    } else if (n == WIFI_SCAN_FAILED) { lwifi.scanning = false; lwifi.lastScanMs = now; }
+      Serial.printf("[wifi] %u networks, best %d\n", lwifi.total, lwifi.strongest);
+    } else if (n == WIFI_SCAN_FAILED) { Serial.println("[wifi] scan failed"); lwifi.scanning = false; lwifi.lastScanMs = now; }
   }
 }
