@@ -46,6 +46,10 @@ tools/release.sh 0.2.0 notes.md   # or write docs/releases/v0.2.0.md first
 
 That commits the version bump, tags `v0.2.0` and pushes. The Release workflow builds both images and publishes the GitHub release; the Web flasher workflow then runs from main and redeploys the portal. Pages is enabled by the workflow itself.
 
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md).
+
 ## Status
 
 - [x] Phase 1: bench bring-up firmware (this)
