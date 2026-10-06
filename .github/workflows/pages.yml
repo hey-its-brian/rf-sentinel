@@ -1,0 +1,91 @@
+# Deploys the web flasher (web/) to GitHub Pages with the latest release's
+# images. Runs from main after the Release workflow finishes (the github-pages
+# environment only allows deployments from the default branch), or by hand
+# from the Actions tab.
+name: Web flasher
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  ESP_WEB_TOOLS_VERSION: "10.4.0"
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Fetch the latest release images
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+          echo "VER=${tag#v}" >> "$GITHUB_ENV"
+          mkdir -p _site/firmware
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern "*-full.bin" --dir _site/firmware
+          mv _site/firmware/rf-sentinel-cyd-*-full.bin _site/firmware/rf-sentinel-cyd-full.bin
+          mv _site/firmware/rf-sentinel-node-*-full.bin _site/firmware/rf-sentinel-node-full.bin
+          echo "Deploying $tag"
+
+      - name: Bundle ESP Web Tools
+        run: |
+          npm pack "esp-web-tools@${ESP_WEB_TOOLS_VERSION}" --silent
+          tar xzf "esp-web-tools-${ESP_WEB_TOOLS_VERSION}.tgz"
+          mkdir -p _site/ewt
+          cp -r package/dist/web/* _site/ewt/
+
+      - name: Assemble site
+        run: |
+          cp web/index.html _site/
+          mkdir -p _site/screenshots
+          cp docs/screenshots/*.png _site/screenshots/ 2>/dev/null || true
+          cat > _site/manifest-cyd.json <<JSON
+          {
+            "name": "RF Sentinel host (CYD 2.8\")",
+            "version": "${VER}",
+            "new_install_prompt_erase": true,
+            "builds": [
+              { "chipFamily": "ESP32",
+                "parts": [{ "path": "firmware/rf-sentinel-cyd-full.bin", "offset": 0 }] }
+            ]
+          }
+          JSON
+          cat > _site/manifest-node.json <<JSON
+          {
+            "name": "RF Sentinel node (Stamp C5)",
+            "version": "${VER}",
+            "new_install_prompt_erase": true,
+            "builds": [
+              { "chipFamily": "ESP32-C5",
+                "parts": [{ "path": "firmware/rf-sentinel-node-full.bin", "offset": 0 }] }
+            ]
+          }
+          JSON
+          touch _site/.nojekyll
+          ls -R _site | head -30
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
