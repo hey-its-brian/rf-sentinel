@@ -10,6 +10,8 @@ Wiring is in `../docs/wiring.md`. Four wires on CN1 and P1.
 pio run -t upload -t monitor
 ```
 
+First boot runs a touch calibration (tap the four corner markers); the result is kept in NVS. To redo it, hold a finger on the screen or hold the BOOT button while the boot splash is showing.
+
 The onboard RGB LED shows green when the node link is alive and red for ten seconds after a warn event.
 
 If the display is mirrored or colours are off, see the `LCD_INVERT` / `LCD_RGB_ORDER` flags in `include/board.h`; a few USB-C batches shipped with an ST7789 instead of an ILI9341, in which case swap `Panel_ILI9341` for `Panel_ST7789` in `src/lgfx_config.hpp` and set `LCD_INVERT true`.

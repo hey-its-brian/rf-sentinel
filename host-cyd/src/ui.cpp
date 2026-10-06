@@ -12,6 +12,7 @@
 #include "model.hpp"
 #include "scanners.hpp"
 #include "proto.hpp"
+#include <Preferences.h>
 #include <functional>
 #include <initializer_list>
 
@@ -444,13 +445,67 @@ static void pageBle(bool f) {
   for (int i = 0; i < NSEG; i++) lcd.fillRect(5 + i * 10, segY, 8, 12, i < on ? c : C_LINE);
 }
 
+// ---- touch calibration ------------------------------------------------------
+// The XPT2046 raw range differs board to board, so the first boot runs
+// LovyanGFX's corner-marker calibration and stores the eight values in NVS.
+// Hold a finger on the screen (or the BOOT button) during the boot splash to
+// run it again.
+static Preferences prefs;
+
+static void bootSplash(const char* msg, uint16_t mc) {
+  lcd.fillScreen(C_BG);
+  lcd.setTextDatum(lgfx::middle_center);
+  lcd.setFont(&fonts::Orbitron_Light_24);
+  lcd.setTextColor(C_TXT, C_BG);  lcd.drawString("RF", W / 2 - 78, 96);
+  lcd.setTextColor(C_ACC, C_BG);  lcd.drawString("//", W / 2 - 40, 96);
+  lcd.setTextColor(C_TXT, C_BG);  lcd.drawString("SENTINEL", W / 2 + 40, 96);
+  lcd.drawFastHLine(40, 118, W - 80, C_RULE);
+  lcd.fillRect(40, 117, 110, 3, C_ACC);
+  lcd.fillRect(150, 117, 30, 3, C_ACC2);
+  lcd.setFont(&fonts::Font0);
+  lcd.setTextColor(mc, C_BG);
+  lcd.drawString(msg, W / 2, 150);
+}
+
+static void runCalibration() {
+  uint16_t p[8];
+  bootSplash("TOUCH CALIBRATION: TAP EACH CORNER MARKER", C_WARN);
+  delay(900);
+  lcd.fillScreen(C_BG);
+  lcd.calibrateTouch(p, C_ACC, C_BG, 24);
+  lcd.setTouchCalibrate(p);
+  prefs.putBytes("touch", p, sizeof p);
+  Serial.printf("[touch] calibrated: %u %u %u %u %u %u %u %u\n", p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
+}
+
+static bool loadCalibration() {
+  uint16_t p[8];
+  if (prefs.getBytes("touch", p, sizeof p) != sizeof p) return false;
+  lcd.setTouchCalibrate(p);
+  return true;
+}
+
 // ---- entry points ----------------------------------------------------------
 void uiBegin() {
   lcd.init();
   lcd.setRotation(1);
   lcd.setBrightness(200);
-  lcd.fillScreen(C_BG);
   lcd.setFont(&fonts::Font0);
+  prefs.begin("rfs", false);
+  pinMode(0, INPUT_PULLUP);   // BOOT button
+
+  bool haveCal = loadCalibration();
+  bootSplash(haveCal ? "HOLD SCREEN OR BOOT TO RECALIBRATE TOUCH" : "TOUCH CALIBRATION NEEDED", C_DIM);
+  bool hold = false;
+  uint32_t t0 = millis();
+  while (millis() - t0 < 1500) {
+    int32_t x, y;
+    if (digitalRead(0) == LOW || lcd.getTouch(&x, &y)) { hold = true; break; }
+    delay(20);
+  }
+  if (!haveCal || hold) runCalibration();
+
+  lcd.fillScreen(C_BG);
   full = true;
   chromeDrawn = false;
 }
